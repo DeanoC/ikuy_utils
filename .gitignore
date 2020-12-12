@@ -19,3 +19,5 @@
 /.idea/libraries/sbt__tech_sparse_toml_scala_2_13_0_2_2_jar.xml
 /.idea/scala_compiler.xml
 /.idea/vcs.xml
+/project/project/
+/.idea/uiDesigner.xml

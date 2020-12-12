@@ -13,4 +13,4 @@ ThisBuild / licenses := Seq(
 ThisBuild / libraryDependencies := Seq(
 	"tech.sparse"            %% "toml-scala"               % "0.2.2",
 	)
-lazy val overlord = (project in file("."))
+lazy val ikuy_utils = (project in file("."))

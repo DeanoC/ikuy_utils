@@ -1,4 +1,4 @@
-package Utils
+package ikuy_utils
 
 import toml.Value
 
