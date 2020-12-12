@@ -1,8 +1,9 @@
-//lazy val ikuy = ProjectRef(uri("git@github.com:DeanoC/ikuy2.git#master"), "root")
+//lazy val ikuy = ProjectRef(uri("git@github.com:DeanoC/ikuy2.git#master"),
+// "root")
 //lazy val ikuy = ProjectRef(file("../ikuy2"), "ikuy")
-lazy val scala213 = "2.13.3"
-lazy val scala212 = "2.12.10"
-lazy val scala211 = "2.11.12"
+lazy val scala213               = "2.13.3"
+lazy val scala212               = "2.12.10"
+lazy val scala211               = "2.11.12"
 lazy val supportedScalaVersions =
 	List(scala213,
 	     scala212,
@@ -18,7 +19,8 @@ ThisBuild / licenses := Seq(
 	)
 
 ThisBuild / libraryDependencies := Seq(
-	"tech.sparse"            %% "toml-scala"               % "0.2.2",
+	"tech.sparse" %% "toml-scala" % "0.2.2",
+	"org.scala-lang.modules" %% "scala-collection-compat" % "2.3.1"
 	)
 lazy val ikuy_utils = (project in file("."))
 	.settings(crossScalaVersions := supportedScalaVersions)
