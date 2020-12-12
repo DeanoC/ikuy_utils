@@ -5,6 +5,7 @@ import toml.Value
 import java.io.{BufferedReader, BufferedWriter, FileReader, FileWriter}
 import java.nio.file.Path
 import scala.util.{Failure, Success, Try}
+import scala.collection.compat._
 
 object Utils {
 	def ensureDirectories(path: Path): Unit = {
