@@ -32,6 +32,26 @@ object Utils {
 		s
 	}
 
+	def readToml(tomlFile: String): Map[String, Value] = {
+		println(s"Reading $tomlFile")
+		val file = new java.io.File(tomlFile)
+		if (!file.exists()) {
+			println(s"No toml file found at ${file.getCanonicalPath}")
+			return Map[String, Value]()
+		}
+
+		val path       = file.getCanonicalPath
+		val sourcetext = scala.io.Source.fromFile(file)
+		val source     = sourcetext.getLines().mkString("\n")
+
+		val tparsed = toml.Toml.parse(source)
+
+		if (tparsed.isLeft) {
+			println(s"${path} has failed to parse with error ${tparsed.left}");
+			Map[String, Value]()
+		} else tparsed.right.get.values
+	}
+
 	def parseBigInt(s: String): BigInt = if (s.startsWith("0x")) {
 		BigInt(s.substring(2), 16);
 	} else {
