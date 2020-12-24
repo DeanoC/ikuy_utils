@@ -88,7 +88,9 @@ object Utils {
 		}
 	}
 
-	def readToml(name: String, tomlPath: Path, klass:Class[_]): Map[String, Variant] = {
+	def readToml(name: String,
+	             tomlPath: Path,
+	             klass: Class[_]): Map[String, Variant] = {
 		println(s"Reading $name")
 		val source = readFile(name, tomlPath, klass) match {
 			case Some(value) => value
@@ -139,7 +141,8 @@ object Utils {
 		case b: BigIntV =>
 			if (b.value < Int.MaxValue && b.value > Int.MinValue) b.value.toInt
 			else {
-				println(s"ERR $t not within int range"); 0
+				println(s"ERR $t not within int range");
+				0
 			}
 		case _          => println(s"ERR $t not a int"); 0
 	}
@@ -161,9 +164,22 @@ object Utils {
 		case Value.Arr(v)  => ArrayV(v.map(toVariant).toArray)
 	}
 
+	def lookupStrings(tbl: Map[String, Variant], key: String, or: String)
+	: Seq[String] = if (tbl.contains(key))
+		tbl(key) match {
+			case ArrayV(arr)  => arr.flatMap {
+				case StringV(str) => Some(str)
+				case _            => None
+			}.toSeq
+			case StringV(str) => Seq(str)
+			case _            => Seq(or)
+		}
+	else Seq(or)
+
 	def lookupString(tbl: Map[String, Variant], key: String, or: String)
 	: String =
 		if (tbl.contains(key)) Utils.toString(tbl(key)) else or
+
 
 	def lookupInt(tbl: Map[String, Variant], key: String, or: Int): Int =
 		if (tbl.contains(key)) Utils.toInt(tbl(key)) else or
@@ -190,8 +206,8 @@ object Utils {
 			case None    => Try {
 				ns.toDouble
 			} match {
-				case Failure(_) => StringV(s)
-				case Success(value)     => DoubleV(value)
+				case Failure(_)     => StringV(s)
+				case Success(value) => DoubleV(value)
 			}
 		}
 	}
