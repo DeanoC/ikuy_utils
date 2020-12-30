@@ -11,6 +11,9 @@ sealed trait Variant
 
 case class ArrayV(arr: Array[Variant]) extends Variant {
 	def value: Array[Variant] = arr
+
+	override def toString: String =
+		value.map(_.toString).mkString("[ ", ", ", " ]")
 }
 
 case class BigIntV(bigInt: BigInt) extends Variant {
@@ -28,22 +31,35 @@ case class BigIntV(bigInt: BigInt) extends Variant {
 
 case class BooleanV(boolean: Boolean) extends Variant {
 	def value: Boolean = boolean
+
+	override def toString: String = value.toString
 }
 
 case class IntV(int: Int) extends Variant {
 	def value: Int = int
+
+	override def toString: String = value.toString
 }
 
 case class TableV(table: Map[String, Variant]) extends Variant {
 	def value: Map[String, Variant] = table
+
+	override def toString: String = {
+		value.map{ case (k, v) => s"$k = ${v.toString}\n"}
+			.mkString("{ ", ", ", " }")
+	}
+
 }
 
 case class StringV(string: String) extends Variant {
 	def value: String = string
+
+	override def toString: String = "'${value}'"
 }
 
 case class DoubleV(dbl: Double) extends Variant {
 	def value: Double = dbl
+	override def toString: String = value.toString
 }
 
 object Utils {
@@ -68,14 +84,12 @@ object Utils {
 			// try resource
 			Try(klass.getResourceAsStream("/" + path.toString)) match {
 				case Failure(exception) =>
-					println(s"$name catalog at ${name} $exception");
+					println(s"$name  at ${name} $exception");
 					None
 				case Success(value)     =>
 					if (value == null) {
-						println(s"$name catalog at ${name} not found");
 						None
-					}
-					Some(scala.io.Source.fromInputStream(value).mkString)
+					} else Some(scala.io.Source.fromInputStream(value).mkString)
 			}
 		} else {
 			val file = path.toAbsolutePath.toFile
