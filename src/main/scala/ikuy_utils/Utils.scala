@@ -7,19 +7,21 @@ import java.nio.file.{Files, Path}
 import scala.util.{Failure, Success, Try}
 import scala.collection.compat.immutable.LazyList
 
-sealed trait Variant
+sealed trait Variant {
+	def toTomlString: String
+}
 
 case class ArrayV(arr: Array[Variant]) extends Variant {
 	def value: Array[Variant] = arr
 
-	override def toString: String =
-		value.map(_.toString).mkString("[ ", ", ", " ]")
+	override def toTomlString: String =
+		value.map(_.toTomlString).mkString("[ ", ", ", " ]")
 }
 
 case class BigIntV(bigInt: BigInt) extends Variant {
 	def value: BigInt = bigInt
 
-	override def toString: String = {
+	override def toTomlString: String = {
 		Try {
 			bigInt.toLong
 		} match {
@@ -32,19 +34,19 @@ case class BigIntV(bigInt: BigInt) extends Variant {
 case class BooleanV(boolean: Boolean) extends Variant {
 	def value: Boolean = boolean
 
-	override def toString: String = value.toString
+	override def toTomlString: String = value.toString
 }
 
 case class IntV(int: Int) extends Variant {
 	def value: Int = int
 
-	override def toString: String = value.toString
+	override def toTomlString: String = value.toString
 }
 
 case class TableV(table: Map[String, Variant]) extends Variant {
 	def value: Map[String, Variant] = table
 
-	override def toString: String = {
+	override def toTomlString: String = {
 		value.map{ case (k, v) => s"$k = ${v.toString}\n"}
 			.mkString("{ ", ", ", " }")
 	}
@@ -54,12 +56,12 @@ case class TableV(table: Map[String, Variant]) extends Variant {
 case class StringV(string: String) extends Variant {
 	def value: String = string
 
-	override def toString: String = "'${value}'"
+	override def toTomlString: String = "'${value}'"
 }
 
 case class DoubleV(dbl: Double) extends Variant {
 	def value: Double = dbl
-	override def toString: String = value.toString
+	override def toTomlString: String = value.toString
 }
 
 object Utils {
