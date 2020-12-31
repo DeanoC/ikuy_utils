@@ -47,7 +47,7 @@ case class TableV(table: Map[String, Variant]) extends Variant {
 	def value: Map[String, Variant] = table
 
 	override def toTomlString: String = {
-		value.map{ case (k, v) => s"$k = ${v.toString}\n"}
+		value.map { case (k, v) => s"$k = ${v.toString}\n" }
 			.mkString("{ ", ", ", " }")
 	}
 
@@ -61,6 +61,7 @@ case class StringV(string: String) extends Variant {
 
 case class DoubleV(dbl: Double) extends Variant {
 	def value: Double = dbl
+
 	override def toTomlString: String = value.toString
 }
 
@@ -163,6 +164,11 @@ object Utils {
 		case _          => println(s"ERR $t not a int"); 0
 	}
 
+	def toDouble(t: Variant): Double = t match {
+		case d: DoubleV => d.value
+		case _         => println(s"ERR $t not a double"); 0.0
+	}
+
 	def toBigInt(t: Variant): BigInt = t match {
 		case b: BigIntV => b.value
 		case _          => println(s"ERR $t not a big int"); 0
@@ -196,9 +202,12 @@ object Utils {
 	: String =
 		if (tbl.contains(key)) Utils.toString(tbl(key)) else or
 
-
 	def lookupInt(tbl: Map[String, Variant], key: String, or: Int): Int =
 		if (tbl.contains(key)) Utils.toInt(tbl(key)) else or
+
+	def lookupDouble(tbl: Map[String, Variant], key: String, or: Double)
+	: Double =
+		if (tbl.contains(key)) Utils.toDouble(tbl(key)) else or
 
 	def lookupBoolean(tbl: Map[String, Variant],
 	                  key: String,
