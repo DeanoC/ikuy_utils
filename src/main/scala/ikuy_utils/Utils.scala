@@ -67,6 +67,8 @@ case class DoubleV(dbl: Double) extends Variant {
 
 object Utils {
 
+	def pow2(x: Double): Double = scala.math.pow(2, x)
+	def log2(x: Double): Double = scala.math.log10(x) / scala.math.log10(2.0)
 
 	def ensureDirectories(path: Path): Unit = {
 		val directory = path.toFile
@@ -87,7 +89,7 @@ object Utils {
 			// try resource
 			Try(klass.getResourceAsStream("/" + path.toString)) match {
 				case Failure(exception) =>
-					println(s"$name  at ${name} $exception");
+					println(s"$name at $name $exception")
 					None
 				case Success(value)     =>
 					if (value == null) {
@@ -111,15 +113,15 @@ object Utils {
 		println(s"Reading $name")
 		val source = readFile(name, tomlPath, klass) match {
 			case Some(value) => value
-			case None        => println(s"${name} toml unable to be read");
+			case None        => println(s"$name toml unable to be read")
 				return Map[String, Variant]()
 		}
 
 		val tparsed = toml.Toml.parse(source)
 		if (tparsed.isLeft) {
-			println(s"${name} has failed to parse with error ${tparsed.left}");
+			println(s"$name has failed to parse with error ${tparsed.left}")
 			Map[String, Variant]()
-		} else tparsed.right.get.values.map(e => (e._1 -> toVariant(e._2)))
+		} else tparsed.right.get.values.map(e => e._1 -> toVariant(e._2))
 	}
 
 	def parseBigInt(s: String): Option[BigInt] = Try {
@@ -158,7 +160,7 @@ object Utils {
 		case b: BigIntV =>
 			if (b.value < Int.MaxValue && b.value > Int.MinValue) b.value.toInt
 			else {
-				println(s"ERR $t not within int range");
+				println(s"ERR $t not within int range")
 				0
 			}
 		case _          => println(s"ERR $t not a int"); 0
@@ -182,7 +184,7 @@ object Utils {
 		case Value.Bool(v) => BooleanV(v)
 		case Value.Real(v) => DoubleV(v)
 		case Value.Num(v)  => BigIntV(v)
-		case Value.Tbl(v)  => TableV(v.map(e => (e._1 -> toVariant(e._2))))
+		case Value.Tbl(v)  => TableV(v.map(e => e._1 -> toVariant(e._2)))
 		case Value.Arr(v)  => ArrayV(v.map(toVariant).toArray)
 	}
 
