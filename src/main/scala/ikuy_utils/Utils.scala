@@ -92,9 +92,9 @@ object Utils {
 					println(s"$name at $name $exception")
 					None
 				case Success(value)     =>
-					if (value == null) {
+					if (value == null)
 						None
-					} else Some(scala.io.Source.fromInputStream(value).mkString)
+					else Some(scala.io.Source.fromInputStream(value).mkString)
 			}
 		} else {
 			val file = path.toAbsolutePath.toFile
