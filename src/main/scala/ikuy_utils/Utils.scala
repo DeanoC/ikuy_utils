@@ -7,9 +7,7 @@ import java.nio.file.{Files, Path}
 import scala.util.{Failure, Success, Try}
 import scala.collection.compat.immutable.LazyList
 
-sealed trait Variant {
-	def toTomlString: String
-}
+sealed trait Variant { def toTomlString: String }
 
 case class ArrayV(arr: Array[Variant]) extends Variant {
 	def value: Array[Variant] = arr
@@ -67,9 +65,19 @@ case class DoubleV(dbl: Double) extends Variant {
 
 object Utils {
 
+
 	def pow2(x: Double): Double = scala.math.pow(2, x)
 	def log2(x: Double): Double = scala.math.log10(x) / scala.math.log10(2.0)
 
+	def mergeAintoB(a: Map[String, Variant], b: Map[String, Variant]): Map[String, Variant] =
+		a ++ (for{s <- b} yield if(!a.contains(s._1)) Some(s) else None).flatten
+
+	def copy(srcAbsPath: Path, dstAbsPath: Path ): Unit = {
+		val fn = srcAbsPath.getFileName.toString
+		Utils.ensureDirectories(dstAbsPath.getParent)
+		val source = Utils.readFile(fn, srcAbsPath, getClass)
+		Utils.writeFile(dstAbsPath, source.toString)
+	}
 	def ensureDirectories(path: Path): Unit = {
 		val directory = path.toFile
 		if (!directory.exists()) {
@@ -173,6 +181,33 @@ object Utils {
 
 	def toBigInt(t: Variant): BigInt = t match {
 		case b: BigIntV => b.value
+		// string to int included some postfix
+		case s: StringV =>  parseBigInt(s.value) match {
+			case Some(value) => value
+			case None        =>
+				val numString = "([0-9]+)".r.findFirstIn(s.value)
+				val multString = "([a-zA-Z-]+)".r.findFirstIn(s.value)
+
+				val num = numString match {
+					case Some(s) => parseBigInt(s) match {
+						case Some(value) => value
+						case None        => { println(s"ERR $t not a big int"); return 0 }
+					}
+					case None        => { println(s"ERR $t not a big int"); return 0 }
+				}
+
+				val mult = multString match {
+					case Some(s) => s.toLowerCase match {
+						case "kb" | "kib" => BigInt(1024)
+						case "mb" | "mib" => BigInt(1024 * 1024)
+						case "gb" | "gib" => BigInt(1024 * 1024 * 1024)
+						case _            => BigInt(1)
+					}
+					case None    => BigInt(1)
+				}
+
+				num * mult
+		}
 		case _          => println(s"ERR $t not a big int"); 0
 	}
 
