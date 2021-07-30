@@ -4,16 +4,19 @@ import toml.Value
 
 import java.io.{BufferedReader, BufferedWriter, FileReader, FileWriter}
 import java.nio.file.{Files, Path}
-import scala.util.{Failure, Success, Try}
 import scala.collection.compat.immutable.LazyList
+import scala.collection.mutable
+import scala.util.{Failure, Success, Try}
 
-sealed trait Variant { def toTomlString: String }
+sealed trait Variant {
+	def toTomlString: String
+}
 
 case class ArrayV(arr: Array[Variant]) extends Variant {
-	def value: Array[Variant] = arr
-
 	override def toTomlString: String =
 		value.map(_.toTomlString).mkString("[ ", ", ", " ]")
+
+	def value: Array[Variant] = arr
 }
 
 case class BigIntV(bigInt: BigInt) extends Variant {
@@ -30,24 +33,24 @@ case class BigIntV(bigInt: BigInt) extends Variant {
 }
 
 case class BooleanV(boolean: Boolean) extends Variant {
-	def value: Boolean = boolean
-
 	override def toTomlString: String = value.toString
+
+	def value: Boolean = boolean
 }
 
 case class IntV(int: Int) extends Variant {
-	def value: Int = int
-
 	override def toTomlString: String = value.toString
+
+	def value: Int = int
 }
 
 case class TableV(table: Map[String, Variant]) extends Variant {
-	def value: Map[String, Variant] = table
-
 	override def toTomlString: String = {
 		value.map { case (k, v) => s"$k = ${v.toString}\n" }
 			.mkString("{ ", ", ", " }")
 	}
+
+	def value: Map[String, Variant] = table
 
 }
 
@@ -58,26 +61,30 @@ case class StringV(string: String) extends Variant {
 }
 
 case class DoubleV(dbl: Double) extends Variant {
-	def value: Double = dbl
-
 	override def toTomlString: String = value.toString
+
+	def value: Double = dbl
 }
 
 object Utils {
 
+	type VariantTable = Map[String, Variant]
+	type MutableVariantTable = mutable.HashMap[String, Variant]
 
 	def pow2(x: Double): Double = scala.math.pow(2, x)
+
 	def log2(x: Double): Double = scala.math.log10(x) / scala.math.log10(2.0)
 
-	def mergeAintoB(a: Map[String, Variant], b: Map[String, Variant]): Map[String, Variant] =
-		a ++ (for{s <- b} yield if(!a.contains(s._1)) Some(s) else None).flatten
+	def mergeAintoB(a: VariantTable, b: VariantTable): VariantTable =
+		a ++ (for {s <- b} yield if (!a.contains(s._1)) Some(s) else None).flatten
 
-	def copy(srcAbsPath: Path, dstAbsPath: Path ): Unit = {
+	def copy(srcAbsPath: Path, dstAbsPath: Path): Unit = {
 		val fn = srcAbsPath.getFileName.toString
 		Utils.ensureDirectories(dstAbsPath.getParent)
 		val source = Utils.readFile(fn, srcAbsPath, getClass)
 		Utils.writeFile(dstAbsPath, source.toString)
 	}
+
 	def ensureDirectories(path: Path): Unit = {
 		val directory = path.toFile
 		if (!directory.exists()) {
@@ -132,25 +139,10 @@ object Utils {
 		} else tparsed.right.get.values.map(e => e._1 -> toVariant(e._2))
 	}
 
-	def parseBigInt(s: String): Option[BigInt] = Try {
-		val ns = s.replace("_", "")
-
-		if (ns.startsWith("0x")) Some(BigInt(ns.substring(2), 16))
-		else Some(BigInt(ns))
-	} match {
-		case Failure(_)     => None
-		case Success(value) => value
-	}
-
 	def toString(t: Variant): String = t match {
 		case str: StringV => str.value
 		case b: BigIntV   => b.value.toString
 		case _            => println(s"ERR $t not a string"); "ERROR"
-	}
-
-	def toArray(t: Variant): Array[Variant] = t match {
-		case arr: ArrayV => arr.value
-		case _           => println(s"ERR $t not an Array"); Array()
 	}
 
 	def toTable(t: Variant): Map[String, Variant] = t match {
@@ -158,10 +150,44 @@ object Utils {
 		case _           => println(s"ERR $t not a Table"); Map[String, Variant]()
 	}
 
-	def toBoolean(t: Variant): Boolean = t match {
-		case b: BooleanV => b.value
-		case _           => println(s"ERR $t not a bool"); false
+	def toVariant(t: Value): Variant = t match {
+		case Value.Str(v)  => parseBigInt(v) match {
+			case Some(value) => BigIntV(value)
+			case None        => StringV(v)
+		}
+		case Value.Bool(v) => BooleanV(v)
+		case Value.Real(v) => DoubleV(v)
+		case Value.Num(v)  => BigIntV(v)
+		case Value.Tbl(v)  => TableV(v.map(e => e._1 -> toVariant(e._2)))
+		case Value.Arr(v)  => ArrayV(v.map(toVariant).toArray)
 	}
+
+	def lookupStrings(tbl: MutableVariantTable, key: String, or: String)
+	: Seq[String] = lookupStrings(tbl.toMap, key, or)
+
+	def lookupStrings(tbl: VariantTable, key: String, or: String)
+	: Seq[String] = if (tbl.contains(key))
+		tbl(key) match {
+			case ArrayV(arr)  => arr.flatMap {
+				case StringV(str) => Some(str)
+				case _            => None
+			}.toSeq
+			case StringV(str) => Seq(str)
+			case _            => Seq(or)
+		}
+	else Seq(or)
+
+	def lookupString(tbl: MutableVariantTable, key: String, or: String) : String =
+		lookupString(tbl.toMap, key, or)
+
+	def lookupString(tbl: VariantTable, key: String, or: String): String =
+		if (tbl.contains(key)) Utils.toString(tbl(key)) else or
+
+	def lookupInt(tbl: MutableVariantTable, key: String, or: Int): Int =
+		lookupInt(tbl.toMap, key, or)
+
+	def lookupInt(tbl: VariantTable, key: String, or: Int): Int =
+		if (tbl.contains(key)) Utils.toInt(tbl(key)) else or
 
 	def toInt(t: Variant): Int = t match {
 		case b: IntV    => b.value
@@ -174,26 +200,65 @@ object Utils {
 		case _          => println(s"ERR $t not a int"); 0
 	}
 
+	def lookupDouble(tbl: MutableVariantTable, key: String, or: Double): Double =
+		lookupDouble(tbl.toMap, key, or)
+
+	def lookupDouble(tbl: VariantTable, key: String, or: Double)
+	: Double =
+		if (tbl.contains(key)) Utils.toDouble(tbl(key)) else or
+
 	def toDouble(t: Variant): Double = t match {
 		case d: DoubleV => d.value
-		case _         => println(s"ERR $t not a double"); 0.0
+		case _          => println(s"ERR $t not a double"); 0.0
 	}
+
+	def lookupBoolean(tbl: MutableVariantTable, key: String, or: Boolean): Boolean =
+		lookupBoolean(tbl.toMap, key, or)
+
+	def lookupBoolean(tbl: VariantTable, key: String, or: Boolean): Boolean =
+		if (tbl.contains(key)) Utils.toBoolean(tbl(key)) else or
+
+	def toBoolean(t: Variant): Boolean = t match {
+		case b: BooleanV => b.value
+		case _           => println(s"ERR $t not a bool"); false
+	}
+
+	def lookupBoolean(tbl: MutableVariantTable, key: String): Array[Variant] =
+		lookupArray(tbl.toMap, key)
+
+	def lookupArray(tbl: VariantTable, key: String): Array[Variant] =
+		if (tbl.contains(key)) Utils.toArray(tbl(key)) else Array()
+
+	def toArray(t: Variant): Array[Variant] = t match {
+		case arr: ArrayV => arr.value
+		case _           => println(s"ERR $t not an Array"); Array()
+	}
+
+	def lookupBigInt(tbl: MutableVariantTable, key: String, or: BigInt): BigInt =
+		lookupBigInt(tbl.toMap, key, or)
+
+	def lookupBigInt(tbl: VariantTable, key: String, or: BigInt): BigInt =
+		if (tbl.contains(key)) Utils.toBigInt(tbl(key)) else or
 
 	def toBigInt(t: Variant): BigInt = t match {
 		case b: BigIntV => b.value
 		// string to int included some postfix
-		case s: StringV =>  parseBigInt(s.value) match {
+		case s: StringV => parseBigInt(s.value) match {
 			case Some(value) => value
 			case None        =>
-				val numString = "([0-9]+)".r.findFirstIn(s.value)
+				val numString  = "([0-9]+)".r.findFirstIn(s.value)
 				val multString = "([a-zA-Z-]+)".r.findFirstIn(s.value)
 
 				val num = numString match {
 					case Some(s) => parseBigInt(s) match {
 						case Some(value) => value
-						case None        => { println(s"ERR $t not a big int"); return 0 }
+						case None        => {
+							println(s"ERR $t not a big int"); return 0
+						}
 					}
-					case None        => { println(s"ERR $t not a big int"); return 0 }
+					case None    => {
+						println(s"ERR $t not a big int"); return 0
+					}
 				}
 
 				val mult = multString match {
@@ -211,51 +276,15 @@ object Utils {
 		case _          => println(s"ERR $t not a big int"); 0
 	}
 
-	def toVariant(t: Value): Variant = t match {
-		case Value.Str(v)  => parseBigInt(v) match {
-			case Some(value) => BigIntV(value)
-			case None        => StringV(v)
-		}
-		case Value.Bool(v) => BooleanV(v)
-		case Value.Real(v) => DoubleV(v)
-		case Value.Num(v)  => BigIntV(v)
-		case Value.Tbl(v)  => TableV(v.map(e => e._1 -> toVariant(e._2)))
-		case Value.Arr(v)  => ArrayV(v.map(toVariant).toArray)
+	def parseBigInt(s: String): Option[BigInt] = Try {
+		val ns = s.replace("_", "")
+
+		if (ns.startsWith("0x")) Some(BigInt(ns.substring(2), 16))
+		else Some(BigInt(ns))
+	} match {
+		case Failure(_)     => None
+		case Success(value) => value
 	}
-
-	def lookupStrings(tbl: Map[String, Variant], key: String, or: String)
-	: Seq[String] = if (tbl.contains(key))
-		tbl(key) match {
-			case ArrayV(arr)  => arr.flatMap {
-				case StringV(str) => Some(str)
-				case _            => None
-			}.toSeq
-			case StringV(str) => Seq(str)
-			case _            => Seq(or)
-		}
-	else Seq(or)
-
-	def lookupString(tbl: Map[String, Variant], key: String, or: String)
-	: String =
-		if (tbl.contains(key)) Utils.toString(tbl(key)) else or
-
-	def lookupInt(tbl: Map[String, Variant], key: String, or: Int): Int =
-		if (tbl.contains(key)) Utils.toInt(tbl(key)) else or
-
-	def lookupDouble(tbl: Map[String, Variant], key: String, or: Double)
-	: Double =
-		if (tbl.contains(key)) Utils.toDouble(tbl(key)) else or
-
-	def lookupBoolean(tbl: Map[String, Variant],
-	                  key: String,
-	                  or: Boolean): Boolean =
-		if (tbl.contains(key)) Utils.toBoolean(tbl(key)) else or
-
-	def lookupArray(tbl: Map[String, Variant], key: String): Array[Variant] =
-		if (tbl.contains(key)) Utils.toArray(tbl(key)) else Array()
-
-	def lookupBigInt(tbl: Map[String, Variant], key: String, or: BigInt)
-	: BigInt = if (tbl.contains(key)) Utils.toBigInt(tbl(key)) else or
 
 	def stringToVariant(s: String): Variant = {
 		val ns = s.toLowerCase
