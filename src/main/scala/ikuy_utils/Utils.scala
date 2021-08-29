@@ -2,7 +2,7 @@ package ikuy_utils
 
 import toml.Value
 
-import java.io.{BufferedReader, BufferedWriter, FileReader, FileWriter}
+import java.io._
 import java.nio.file.{Files, Path}
 import scala.collection.compat.immutable.LazyList
 import scala.collection.mutable
@@ -10,11 +10,17 @@ import scala.util.{Failure, Success, Try}
 
 sealed trait Variant {
 	def toTomlString: String
+
+	def toCString: String
 }
 
 case class ArrayV(arr: Array[Variant]) extends Variant {
 	override def toTomlString: String =
 		value.map(_.toTomlString).mkString("[ ", ", ", " ]")
+
+	override def toCString: String = {
+		value.map(_.toTomlString).mkString("[ ", ", ", " ]")
+	}
 
 	def value: Array[Variant] = arr
 }
@@ -30,16 +36,29 @@ case class BigIntV(bigInt: BigInt) extends Variant {
 			case Success(value)     => value.toString
 		}
 	}
+
+	override def toCString: String = {
+		Try {
+			bigInt.toLong
+		} match {
+			case Failure(exception) => s"'${bigInt.toString(16)}'"
+			case Success(value)     => value.toString
+		}
+	}
 }
 
 case class BooleanV(boolean: Boolean) extends Variant {
 	override def toTomlString: String = value.toString
+
+	override def toCString: String = if (value) "TRUE" else "FALSE"
 
 	def value: Boolean = boolean
 }
 
 case class IntV(int: Int) extends Variant {
 	override def toTomlString: String = value.toString
+
+	override def toCString: String = value.toString
 
 	def value: Int = int
 }
@@ -50,6 +69,11 @@ case class TableV(table: Map[String, Variant]) extends Variant {
 			.mkString("{ ", ", ", " }")
 	}
 
+	override def toCString: String = {
+		value.map { case (k, v) => s"$k, ${v.toString}\n" }
+			.mkString("[ ", ", ", " ]")
+	}
+
 	def value: Map[String, Variant] = table
 
 }
@@ -57,11 +81,15 @@ case class TableV(table: Map[String, Variant]) extends Variant {
 case class StringV(string: String) extends Variant {
 	def value: String = string
 
-	override def toTomlString: String = "'${value}'"
+	override def toTomlString: String = s"'$value'"
+
+	override def toCString: String = s"""$value"""
 }
 
 case class DoubleV(dbl: Double) extends Variant {
 	override def toTomlString: String = value.toString
+
+	override def toCString: String = value.toString
 
 	def value: Double = dbl
 }
@@ -78,18 +106,84 @@ object Utils {
 	def mergeAintoB(a: VariantTable, b: VariantTable): VariantTable =
 		a ++ (for {s <- b} yield if (!a.contains(s._1)) Some(s) else None).flatten
 
-	def copy(srcAbsPath: Path, dstAbsPath: Path): Unit = {
+	def copy(srcAbsPath: Path, dstAbsPath: Path, klass: Class[_]): Unit = {
 		val fn = srcAbsPath.getFileName.toString
 		Utils.ensureDirectories(dstAbsPath.getParent)
-		val source = Utils.readFile(fn, srcAbsPath, getClass)
-		Utils.writeFile(dstAbsPath, source.toString)
+		val source = Utils.readFile(fn, srcAbsPath, klass)
+		source match {
+			case Some(value) =>
+				Utils.writeFile(dstAbsPath, value)
+			case None        =>
+				println(f"$srcAbsPath does not exist%n")
+		}
 	}
 
 	def ensureDirectories(path: Path): Unit = {
 		val directory = path.toFile
-		if (!directory.exists()) {
-			directory.mkdirs()
+		if (!directory.exists()) directory.mkdirs()
+	}
+
+	def deleteDirectories(path: Path): Unit = {
+		val directory = path.toFile
+		deleteRecursively(directory)
+	}
+
+	def deleteFileIfExists(path: Path): Unit = {
+		if (Files.exists(path)) {
+			val file = path.toFile
+			file.delete()
 		}
+	}
+
+	def rename(src: Path, dst: Path): Unit = {
+		val srcFile = src.toFile
+		val dstFile = dst.toFile
+		srcFile.renameTo(dstFile)
+	}
+
+	def doesFileOrDirectoryExist(path: Path): Boolean = {
+		Files.exists(path)
+	}
+
+	def createSymbolicLink(src: Path, dst: Path): Unit = {
+		Files.createSymbolicLink(dst.toAbsolutePath, src.toAbsolutePath)
+	}
+
+	def setFileExecutable(file: Path): Unit = {
+		val fileFile = file.toFile
+		fileFile.setExecutable(true)
+	}
+
+	def toBigInt(t: Variant): BigInt = t match {
+		case b: BigIntV => b.value
+		// string to int included some postfix
+		case s: StringV => parseBigInt(s.value) match {
+			case Some(value) => value
+			case None        =>
+				val numString  = "([0-9]+)".r.findFirstIn(s.value)
+				val multString = "([a-zA-Z-]+)".r.findFirstIn(s.value)
+
+				val num = numString match {
+					case Some(s) => parseBigInt(s) match {
+						case Some(value) => value
+						case None        => println(s"ERR $t not a big int"); return 0
+					}
+					case None    => println(s"ERR $t not a big int"); return 0
+				}
+
+				val mult = multString match {
+					case Some(s) => s.toLowerCase match {
+						case "kb" | "kib" => BigInt(1024)
+						case "mb" | "mib" => BigInt(1024 * 1024)
+						case "gb" | "gib" => BigInt(1024 * 1024 * 1024)
+						case _            => BigInt(1)
+					}
+					case None    => BigInt(1)
+				}
+
+				num * mult
+		}
+		case _          => println(s"ERR $t not a big int"); 0
 	}
 
 	def writeFile(path: Path, s: String): Unit = {
@@ -240,40 +334,16 @@ object Utils {
 	def lookupBigInt(tbl: VariantTable, key: String, or: BigInt): BigInt =
 		if (tbl.contains(key)) Utils.toBigInt(tbl(key)) else or
 
-	def toBigInt(t: Variant): BigInt = t match {
-		case b: BigIntV => b.value
-		// string to int included some postfix
-		case s: StringV => parseBigInt(s.value) match {
-			case Some(value) => value
-			case None        =>
-				val numString  = "([0-9]+)".r.findFirstIn(s.value)
-				val multString = "([a-zA-Z-]+)".r.findFirstIn(s.value)
-
-				val num = numString match {
-					case Some(s) => parseBigInt(s) match {
-						case Some(value) => value
-						case None        => {
-							println(s"ERR $t not a big int"); return 0
-						}
-					}
-					case None    => {
-						println(s"ERR $t not a big int"); return 0
-					}
-				}
-
-				val mult = multString match {
-					case Some(s) => s.toLowerCase match {
-						case "kb" | "kib" => BigInt(1024)
-						case "mb" | "mib" => BigInt(1024 * 1024)
-						case "gb" | "gib" => BigInt(1024 * 1024 * 1024)
-						case _            => BigInt(1)
-					}
-					case None    => BigInt(1)
-				}
-
-				num * mult
+	private def deleteRecursively(file: File): Unit = {
+		if (Files.isSymbolicLink(file.toPath)) {
+			file.delete()
+		} else if (file.isDirectory) {
+			file.listFiles.foreach(deleteRecursively)
 		}
-		case _          => println(s"ERR $t not a big int"); 0
+
+		if (file.exists && !file.delete) {
+			throw new Exception(s"Unable to delete ${file.getAbsolutePath}")
+		}
 	}
 
 	def parseBigInt(s: String): Option[BigInt] = Try {
