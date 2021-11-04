@@ -233,11 +233,12 @@ object Utils {
 		} else tparsed.right.get.values.map(e => e._1 -> toVariant(e._2))
 	}
 
-	def toString(t: Variant): String = t match {
-		case str: StringV => str.value
-		case b: BigIntV   => b.value.toString
-		case _            => println(s"ERR $t not a string"); "ERROR"
-	}
+	def lookupString(tbl: VariantTable, key: String, or: String): String =
+		if (tbl.contains(key)) {
+			Utils.toString(tbl(key))
+		} else {
+			or
+		}
 
 	def toTable(t: Variant): Map[String, Variant] = t match {
 		case tbl: TableV => tbl.value
@@ -271,11 +272,15 @@ object Utils {
 		}
 	else Seq(or)
 
-	def lookupString(tbl: MutableVariantTable, key: String, or: String) : String =
+	def lookupString(tbl: MutableVariantTable, key: String, or: String): String =
 		lookupString(tbl.toMap, key, or)
 
-	def lookupString(tbl: VariantTable, key: String, or: String): String =
-		if (tbl.contains(key)) Utils.toString(tbl(key)) else or
+	def toString(t: Variant): String = t match {
+		case i: IntV      => i.value.toString
+		case str: StringV => str.value
+		case b: BigIntV   => b.value.toString
+		case _            => println(s"ERR $t not a string"); "ERROR"
+	}
 
 	def lookupInt(tbl: MutableVariantTable, key: String, or: Int): Int =
 		lookupInt(tbl.toMap, key, or)
