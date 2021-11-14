@@ -355,6 +355,7 @@ object Utils {
 		val ns = s.replace("_", "")
 
 		if (ns.startsWith("0x")) Some(BigInt(ns.substring(2), 16))
+		else if (ns.startsWith("0b")) Some(BigInt(ns.substring(2), 2))
 		else Some(BigInt(ns))
 	} match {
 		case Failure(_)     => None
