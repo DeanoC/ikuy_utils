@@ -6,6 +6,7 @@ import java.io._
 import java.nio.file.{Files, Path}
 import scala.collection.compat.immutable.LazyList
 import scala.collection.mutable
+import scala.reflect.runtime.{universe => ru}
 import scala.util.{Failure, Success, Try}
 
 sealed trait Variant {
@@ -219,7 +220,7 @@ object Utils {
 	def readToml(name: String,
 	             tomlPath: Path,
 	             klass: Class[_]): Map[String, Variant] = {
-		println(s"Reading $name")
+		//println(s"Reading $name")
 		val source = readFile(name, tomlPath, klass) match {
 			case Some(value) => value
 			case None        => println(s"$name toml unable to be read")
@@ -377,5 +378,23 @@ object Utils {
 				case Success(value) => DoubleV(value)
 			}
 		}
+	}
+
+	def KnownSubClassesOfSealedType[T: ru.TypeTag]() = {
+		val tpe   = ru.typeOf[T]
+		val clazz = tpe.typeSymbol.asClass
+		// if you want to ensure the type is a sealed trait,
+		// then you can use clazz.isSealed and clazz.isTrait
+		clazz.knownDirectSubclasses
+	}
+
+	def ConstructFromClassSymbol(symbol: ru.Symbol, args: Any*) = {
+		val m     = ru.runtimeMirror(getClass.getClassLoader)
+		val cm    = m.reflectClass(symbol.asClass)
+		val ctorm = cm.reflectConstructor(symbol
+			                                  .info
+			                                  .member(ru.termNames.CONSTRUCTOR)
+			                                  .asMethod)
+		ctorm(args)
 	}
 }

@@ -20,7 +20,8 @@ ThisBuild / licenses := Seq(
 
 ThisBuild / libraryDependencies := Seq(
 	"tech.sparse" %% "toml-scala" % "0.2.2",
-	"org.scala-lang.modules" %% "scala-collection-compat" % "2.3.1"
+	"org.scala-lang.modules" %% "scala-collection-compat" % "2.3.1",
+	"org.scala-lang" % "scala-reflect" % scalaVersion.value
 	)
 lazy val ikuy_utils = (project in file("."))
 	.settings(crossScalaVersions := supportedScalaVersions)
