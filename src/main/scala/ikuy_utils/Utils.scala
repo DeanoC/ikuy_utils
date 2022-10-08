@@ -194,34 +194,20 @@ object Utils {
 		bw.close()
 	}
 
-	def readFile(name: String, path: Path, klass: Class[_]): Option[String] = {
-		if (!Files.exists(path.toAbsolutePath)) {
-			// try resource
-			Try(klass.getResourceAsStream("/" + path.toString)) match {
-				case Failure(exception) =>
-					println(s"$name at $name $exception")
-					None
-				case Success(value)     =>
-					if (value == null)
-						None
-					else Some(scala.io.Source.fromInputStream(value).mkString)
-			}
-		} else {
-			val file = path.toAbsolutePath.toFile
-			val br   = new BufferedReader(new FileReader(file))
-			val s    = LazyList.continually(br.readLine())
-				.takeWhile(_ != null)
-				.mkString("\n")
-			br.close()
-			Some(s)
-		}
+	def readFile(name: String, path: Path): Option[String] = {
+		val file = path.toAbsolutePath.toFile
+		val br   = new BufferedReader(new FileReader(file))
+		val s    = LazyList.continually(br.readLine())
+			.takeWhile(_ != null)
+			.mkString("\n")
+		br.close()
+		Some(s)
 	}
 
 	def readToml(name: String,
-	             tomlPath: Path,
-	             klass: Class[_]): Map[String, Variant] = {
+	             tomlPath: Path): Map[String, Variant] = {
 		//println(s"Reading $name")
-		val source = readFile(name, tomlPath, klass) match {
+		val source = readFile(name) match {
 			case Some(value) => value
 			case None        => println(s"$name toml unable to be read")
 				return Map[String, Variant]()
