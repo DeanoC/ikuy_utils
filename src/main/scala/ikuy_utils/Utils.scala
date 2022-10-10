@@ -107,10 +107,9 @@ object Utils {
 	def mergeAintoB(a: VariantTable, b: VariantTable): VariantTable =
 		a ++ (for {s <- b} yield if (!a.contains(s._1)) Some(s) else None).flatten
 
-	def copy(srcAbsPath: Path, dstAbsPath: Path, klass: Class[_]): Unit = {
-		val fn = srcAbsPath.getFileName.toString
+	def copy(srcAbsPath: Path, dstAbsPath: Path): Unit = {
 		Utils.ensureDirectories(dstAbsPath.getParent)
-		val source = Utils.readFile(fn, srcAbsPath, klass)
+		val source = Utils.readFile(srcAbsPath)
 		source match {
 			case Some(value) =>
 				Utils.writeFile(dstAbsPath, value)
@@ -187,6 +186,37 @@ object Utils {
 		case _          => println(s"ERR $t not a big int"); 0
 	}
 
+	def toFrequency(t: Variant): Double = t match {
+		case b: BigIntV => b.value.toDouble
+		// string to int included some postfix
+		case s: StringV => parseBigInt(s.value) match {
+			case Some(value) => value.toDouble
+			case None        =>
+				val numString  = "([0-9]+)".r.findFirstIn(s.value)
+				val multString = "([a-zA-Z-]+)".r.findFirstIn(s.value)
+
+				val num = numString match {
+					case Some(s) => parseBigInt(s) match {
+						case Some(value) => value.toFloat
+						case None        => println(s"ERR $t not a big int"); return 0
+					}
+					case None    => println(s"ERR $t not a big int"); return 0
+				}
+
+				val mult = multString match {
+					case Some(s) => s.toLowerCase match {
+						case "khz" => 1024.0
+						case "mhz" => 1024.0 * 1024.0
+						case "ghz" => 1024.0 * 1024.0 * 1024.0
+						case _            => 1.0
+					}
+					case None    => 1.0
+				}
+				num * mult
+		}
+		case _          => println(s"ERR $t not a big int"); 0
+	}
+
 	def writeFile(path: Path, s: String): Unit = {
 		val file = path.toFile
 		val bw   = new BufferedWriter(new FileWriter(file))
@@ -194,8 +224,9 @@ object Utils {
 		bw.close()
 	}
 
-	def readFile(name: String, path: Path): Option[String] = {
+	def readFile(path: Path): Option[String] = {
 		val file = path.toAbsolutePath.toFile
+		if(!file.exists()) return None;
 		val br   = new BufferedReader(new FileReader(file))
 		val s    = LazyList.continually(br.readLine())
 			.takeWhile(_ != null)
@@ -204,18 +235,16 @@ object Utils {
 		Some(s)
 	}
 
-	def readToml(name: String,
-	             tomlPath: Path): Map[String, Variant] = {
-		//println(s"Reading $name")
-		val source = readFile(name) match {
+	def readToml(tomlPath: Path): Map[String, Variant] = {
+		val source = readFile(tomlPath) match {
 			case Some(value) => value
-			case None        => println(s"$name toml unable to be read")
+			case None        => println(s"$tomlPath toml unable to be read")
 				return Map[String, Variant]()
 		}
 
 		val tparsed = toml.Toml.parse(source)
 		if (tparsed.isLeft) {
-			println(s"$name has failed to parse with error ${tparsed.left}")
+			println(s"$tomlPath has failed to parse with error ${tparsed.left}")
 			Map[String, Variant]()
 		} else tparsed.right.get.values.map(e => e._1 -> toVariant(e._2))
 	}
@@ -364,23 +393,5 @@ object Utils {
 				case Success(value) => DoubleV(value)
 			}
 		}
-	}
-
-	def KnownSubClassesOfSealedType[T: ru.TypeTag]() = {
-		val tpe   = ru.typeOf[T]
-		val clazz = tpe.typeSymbol.asClass
-		// if you want to ensure the type is a sealed trait,
-		// then you can use clazz.isSealed and clazz.isTrait
-		clazz.knownDirectSubclasses
-	}
-
-	def ConstructFromClassSymbol(symbol: ru.Symbol, args: Any*) = {
-		val m     = ru.runtimeMirror(getClass.getClassLoader)
-		val cm    = m.reflectClass(symbol.asClass)
-		val ctorm = cm.reflectConstructor(symbol
-			                                  .info
-			                                  .member(ru.termNames.CONSTRUCTOR)
-			                                  .asMethod)
-		ctorm(args)
 	}
 }
